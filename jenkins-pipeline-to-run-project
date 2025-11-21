@@ -1,0 +1,44 @@
+pipeline {
+    agent { label "ubuntu"}
+    
+    stages{
+        
+        stage("code"){
+            steps{
+                sh "mkdir -p /home/ubuntu/git-project"
+                echo "this is clone the code"
+                sh "git clone https://github.com/Vikasrd1511/Jenkins.git"
+
+            }
+        }
+        stage("build"){
+            steps{
+                echo "this is build the code"
+                sh "whoami"
+                sh "docker rm -f notes-container || true"
+               sh "docker build --no-cache -t notes-app:latest ."
+                
+            }
+        }
+        stage("test"){
+            steps{
+              echo "this is tesing the code"  
+            }
+        }
+        stage("deploy"){
+            steps{
+                echo "this is deploy the code"
+                sh """
+            echo "Cleaning old containers"
+            docker rm -f notes-container || true
+            
+            echo "Freeing port 8000 if stuck"
+            docker rm -f \$(docker ps --filter "publish=8000" -q) || true
+
+            echo "Running new container"
+            docker run -d --name notes-container -p 8000:8000 notes-app:latest
+        """
+            }
+        }
+    }
+}
