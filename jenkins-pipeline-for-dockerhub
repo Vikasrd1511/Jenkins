@@ -1,0 +1,76 @@
+pipeline {
+    agent { label "ubuntu"}
+    
+    stages{
+        
+        stage("code"){
+            steps{
+                sh """
+            mkdir -p /home/ubuntu/git-project
+            cd /home/ubuntu/git-project
+
+            if [ -d "Jenkins/.git" ]; then
+                echo "Repo exists. Pull latest..."
+                cd Jenkins
+                git pull
+            else
+                echo "Repo not present. Cloning now..."
+                git clone https://github.com/Vikasrd1511/Jenkins.git
+            fi
+        """
+
+            }
+        }
+        stage("build"){
+            steps{
+                echo "this is build the code"
+                sh "whoami"
+                sh "docker rm -f notes-container || true"
+               sh "docker build --no-cache -t notes-app:latest ."
+                
+            }
+        }
+        stage("push to dockerhub"){
+    steps{
+      withCredentials([usernamePassword(
+            credentialsId:"docker",
+            usernameVariable:"dockerHubUser", 
+            passwordVariable:"dockerHubPass")]){
+
+        sh '''
+            echo $dockerHubPass | docker login -u $dockerHubUser --password-stdin
+
+            # Correct tag format
+            docker tag notes-app:latest $dockerHubUser/jenkins:latest
+
+            # Push to docker hub
+            docker push $dockerHubUser/jenkins:latest
+        '''
+
+        echo "Image successfully pushed to DockerHub"
+      }
+    }
+}
+
+        stage("deploy") {
+    steps {
+        echo "this is deploy the code"
+        sh """
+            echo Cleaning old containers
+            docker rm -f notes-container || true
+
+            echo Freeing port 8000 if stuck
+            CONTAINER_ID=\$(docker ps -q --filter publish=8000)
+            if [ -n "\$CONTAINER_ID" ]; then
+                docker rm -f \$CONTAINER_ID || true
+            fi
+
+            docker pull vikasrd/jenkins:latest
+            docker compose down
+            docker compose up -d --force-recreate
+        """
+    }
+}
+
+    }
+}
